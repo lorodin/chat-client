@@ -1,22 +1,80 @@
 var Server = function(protocol, host, port){
     this.socket = io(protocol + '://' + host + ':' + port);
-    this._makeListeners();
+    this.listeners = {};
+    this.registrateSocket(this.socket);    
 }
 
-Server.prototype.registerUser = function(user_name, callback){
-    this._updateListener('register_user_complete', callback);
-    this.socket.emit('register_user', { 'name': user_name });
-    console.log('register user from bg.server, user_name: ' + user_name);
+/**SOCKET ON */
+Server.prototype.registrateSocket = function(socket){
+    let _this = this;
+
+    let msgs = [
+        'register_user_complete',
+        'change_name_complete'
+    ];
+
+    msgs.forEach(msg => {
+        socket.on(msg, (resp)=>{
+            _this.listeners[msg](resp);
+        });    
+    });
+} 
+
+/**ADD LISTENERS */
+
+Server.prototype.onErrorListener = function(callback){
+    this.listeners['on_error'] = callback;
 }
 
-Server.prototype.changeName = function(new_name, callback){
-    this._updateListener('change_name_complete', callback);
-    this.socket.emit('change_name', { 'name': new_name });
+Server.prototype.onRegisterClientCompleteListener = function(callback){
+    this.setListener('register_user_complete', callback);
 }
 
+Server.prototype.onRegisterPageCompleteListener = function(callback){
+
+}
+
+Server.prototype.onChangeNameComplete = function(callback){
+    this.setListener('change_name_complete', callback);
+}
+
+Server.prototype.setListener = function(cmd, callback){
+    let _this = this;
+    this.listeners[cmd] = (resp) => {
+        if(resp.type === 'ERROR'){
+            if(_this.listeners['on_error']) _this.listeners['on_error'](resp.msg);
+            return;
+        }
+        callback(resp.data);
+    };
+}
+
+/**ADD LISTENERS */
+
+/**EMIT COMMANDS */
+
+/**Регистрация пользователя на сервере */
+Server.prototype.registerUser = function(user_name){
+    this._sendRequest('register_user', {
+        'id': '',
+        'name': user_name
+    })
+}
+
+
+/**Изменение имени пользователя */
+Server.prototype.changeName = function(new_name){
+    this._sendRequest('change_name', new_name);
+}
+
+
+/** Отключение пользователя */
 Server.prototype.exit = function(){
     this.socket.emit('disconnect');
 }
+
+
+/**EMIT COMMANDS */
 
 Server.prototype.unregisterPage = function(url, callback){
     this._updateListener('unregister_page_complete', callback);
@@ -28,34 +86,10 @@ Server.prototype.registerNewPage = function(page, callback){
     this.socket.emit('register_new_page', { 'data': page });
 }
 
-Server.prototype._updateListener = function(cmd, callback){
-    if(!cmd || this.actions.indexOf(cmd) == -1) return;
-    if(!callback) return;
 
-    this.listeners[cmd] = callback;
-}
-
-Server.prototype._makeListeners = function(){
-    this.listeners = {
-        'register_user_complete': undefined ,
-        'register_page_complete': undefined,
-        'unregister_page_complete': undefined,
-        'change_name_complete': undefined
-    };
-
-    this.actions = [
-        'register_user_complete',
-        'register_page_complete',
-        'unregister_page_complete',
-        'change_name_complete'
-    ]
-
-    let _this = this;
-
-    for(let i = 0; i < this.actions.length; i++){
-        this.socket.on(this.actions[i], (data) => {
-            if(_this.listeners[_this.actions[i]] != undefined) 
-               _this.listeners[_this.actions[i]](data);
-        });
-    }
+Server.prototype._sendRequest = function(cmd, data){
+    this.socket.emit(cmd, {
+        'time': Date.now() / 1000, 
+        'data': data
+    });
 }

@@ -1,7 +1,6 @@
 var ChromeApp = function(server){
     let _this = this;
     this.tag = 'ChromApp';
-    this.domains = [];
     this.pageContainer = new PageContainer();
     this.server = server;
 
@@ -9,41 +8,21 @@ var ChromeApp = function(server){
 
     if(!default_chat_status) localStorage.setItem('default_chat_status', false);
     
+    // Считаем начальное количество открытых вкладок
     chrome.tabs.getAllInWindow( null, function( tabs ){
         console.log("Initial tab count: " + tabs.length);
         _this.num_tabs = tabs.length;
     });
 
+    // Слушаем удаление страницы
     this.pageContainer.onRemovePageListener((page) => {
         logD(_this.tag, 'Page "' + page.url + '" deleted!');
         
-        let domain_url = getDomain(page.url);
-        
-        let find = _this.domains.find((v, i, a) => v.url == domain_url);
-        
-        if(find){
-            find.removePage(page);
-            if(find.isEmpty()){
-                let index = _this.domains.indexOf(find);
-                _this.domains.splice(index, 1);
-            }
-        }
-
         if(page.on) _this.server.unregisterPage(page.url, ()=>{});
     });
  
+    // Слушаем создание новой страницы
     this.pageContainer.onCreateNewPage((page)=>{
-        let domain_url = getDomain(page.url);
-        let find = _this.domains.find((v, i, a) => v.url == domain_url);
-        if(find){
-            find.setPage(page);   
-        }else{
-            let domain = new DomainModel(domain_url);
-            domain.setPage(page);
-            _this.domains.push(domain);
-            logD(_this.tag, 'Create new domain: ' + domain.url);
-        }
-        
         page.on = getChatStatusOnPage(page.url);
 
         if(page.on) _this.registerPage(page);
@@ -61,24 +40,7 @@ ChromeApp.prototype.onRequest = function(request, sender, sendResponse){
 
     switch(request.msg.cmd){
         case 'change-name':
-            this.server.changeName(request.msg.data, (data)=>{
-                if(!data.status){
-                    console.log('change name error!');
-                    return;
-                }
-                console.log('change name complete, new name: ' + data.name);
-
-                this._user.name = data.name;
-
-                if(this.pageContainer.getActiveTab() != null) { 
-                    this.pageContainer.getActiveTab().port.postMessage({
-                        'cmd': 'change-name',
-                        'data': {
-                            'name' : data.name
-                        }
-                    })
-                }
-            })
+            this.server.changeName(request.msg.data);
         break;
     }
 }
@@ -91,10 +53,8 @@ ChromeApp.prototype.registerPage = function(page, old_status){
     console.log(old_status);
 
     if(page.on && page.on !== 'false'){
-        let domain_url = getDomain(page.url);
         this.server.registerNewPage({
-            'url': page.url,
-            'domain': domain_url
+            'url': page.url
         }, (data) => {
             _this.onRegisterPageComplete(data);
         });
@@ -131,30 +91,8 @@ ChromeApp.prototype.testAction = function(msg){
 
 ChromeApp.prototype.start = function(){
     let _this = this;
-    chrome.tabs.onRemoved.addListener((id) => {
-        _this.num_tabs--;
-        console.log('Num tabs: ' + _this.num_tabs);
-        _this.pageContainer.removeTabFromPage(id);
-        if(_this.num_tabs == 0){
-            // close connection
-            _this.server.exit();
-        }
-    })
-    
-    chrome.tabs.onCreated.addListener(()=>{
-        _this.num_tabs++;
-    })
 
-    chrome.tabs.onUpdated.addListener((id, info, tab) => {
-        if(info.status && info.status == 'complete'){
-            let page = _this.pageContainer.createOrUpdatePage(id, tab.url);
-        }
-    });
-    
-    chrome.tabs.onActivated.addListener((tab) => {
-        _this.pageContainer.setActiveTab(tab.tabId);
-    });
-
+    // Задаем начальное значение имени пользователя
     let user_name = localStorage.getItem('name');
     
     if(!user_name) {
@@ -169,6 +107,35 @@ ChromeApp.prototype.start = function(){
 
     console.log('User name: ' + user_name);
 
+    // Слушаем закрытие вкладок
+    chrome.tabs.onRemoved.addListener((id) => {
+        _this.num_tabs--;
+        console.log('Num tabs: ' + _this.num_tabs);
+        _this.pageContainer.removeTabFromPage(id);
+        if(_this.num_tabs == 0){
+            // close connection
+            _this.server.exit();
+        }
+    })
+    
+    // Слушаем закрытие вкладок
+    chrome.tabs.onCreated.addListener(()=>{
+        _this.num_tabs++;
+    })
+
+    // Слушаем обновление страницы
+    chrome.tabs.onUpdated.addListener((id, info, tab) => {
+        if(info.status && info.status == 'complete'){
+            let page = _this.pageContainer.createOrUpdatePage(id, tab.url);
+        }
+    });
+    
+    // Слушаем изменение активной вкладки
+    chrome.tabs.onActivated.addListener((tab) => {
+        _this.pageContainer.setActiveTab(tab.tabId);
+    });
+
+    // Слушаем подключение к bg из popup
     chrome.runtime.onConnect.addListener(
         function(port){
             let active_tab = _this.pageContainer.getActiveTab();
@@ -181,12 +148,32 @@ ChromeApp.prototype.start = function(){
         }
     );
 
-    this.server.registerUser(this._user.name, (data)=>{
-        console.log('register_user');
+    this.server.onRegisterClientCompleteListener((data)=>{
         console.log(data);
-        _this._user.id = data.user_id;
-    })
+    });
+
+    this.server.onChangeNameComplete((new_name) => {
+        console.log(new_name);
+        this._user.name = new_name;
+
+        if(this.pageContainer.getActiveTab() != null) { 
+            this.pageContainer.getActiveTab().port.postMessage({
+                'cmd': 'change-name',
+                'data': {
+                    'name' : new_name
+                }
+            })
+        }
+
+    });
+
+    this.server.onErrorListener((msg)=>{
+        console.log('Error: ' + msg);
+    });
+
+    this.server.registerUser(user_name);
 }
+
 
 ChromeApp.prototype.onMessage = function(msg){
     if(!msg) return;

@@ -1,6 +1,11 @@
-var UserModel = function(id, name){
+var UserModel = function(id, name, time_z){
     this._id = id;
     this._name = name
+    this._time_z = time_z;
+}
+
+UserModel.prototype.getTimeZone = function(){
+    return this._time_z;
 }
 
 /** 
