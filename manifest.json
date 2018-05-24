@@ -1,0 +1,26 @@
+{
+    "manifest_version": 2,
+    "name":"chat test",
+    "version":"0.0.1",
+    "author":"Iliy",
+    "options_page":"options/index.html",
+    "background":{
+        "scripts":[ "background/libs/socket.io.js",
+                    "background/server.bg.js",
+                    "background/user.model.js",
+                    "background/message.model.js",
+                    "background/domain.model.js",
+                    "background/app.bg.js",
+                    "background/page.model.js",
+                    "background/page.container.js",
+                    "background/background.tools.js", 
+                    "background/background.js"]
+    },
+    "description":"Island chat",
+    "permissions":["tabs", "activeTab"],
+    "optional_permissions":["tabs"],
+    "browser_action":{
+        "default_popup":"popup/index.html"
+    },
+    "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'"
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="../libs/css/bootstrap.min.css"/>
+    <script type="text/javascript" src="../libs/js/jquery-3.3.1.min.js"></script>
+    <script type="text/javascript" src="../libs/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="options.js"></script>
+    <title>Insland Chat options</title>
+</head>
+<body>
+    <div class='container'>
+        <div class='row'>
+            <h1>Options</h1>
+        </div>
+        <div class='row'>
+            <form>
+                <div class='form-group'>
+                    <lable for='default-user-name'>
+                        Default name
+                    </lable>
+                    <input type='text' id='default-user-name' class='form-control' aria-describedby='help-default-user-name'/>
+                    <small id='help-default-user-name'>
+                        This name will be visible to other users in the chat, 
+                        if you enter the chat, where there are already users with this name, 
+                        a certain number will be added to your name.</small>
+                </div>
+                <div class='form-group'>
+                    <label for='default-status-chat'>
+                        Default chat on
+                    </label>
+                    <input type='checkbox' id='default-status-chat' class='form-control'/>
+                </div>
+                <button type='button' id='save-change' class='btn btn-primary'>Save</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
